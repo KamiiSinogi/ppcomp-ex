@@ -27,77 +27,40 @@ int print(double *data, int n)
     return 0;
 }
 
-static inline void swap(double *x, double *y)
+void merge(double *num, int begin, int mid, int end)
 {
-    double stp=*x; *x=*y; *y=stp;
-    return;
+	int left=begin, right=mid+1, size=end-begin+1;
+	double *tmp=malloc(sizeof(double)*(end-begin+1));
+	for (int i=0; i<size; i++)
+	{ 
+		if(left>mid) tmp[i]=num[right++];
+		else if(right>end) tmp[i]=num[left++];
+		else if(num[left]<=num[right]) tmp[i]=num[left++];
+		else tmp[i]=num[right++];
+	}
+	for (int i=0; i<size; i++) num[begin++]=tmp[i];
+    free(tmp);
 }
 
-void bitonic_0(double *num, int bit, int hb, int lb)
+void sort(double *num, int begin, int end)
 {
-    int A=1<<(bit-hb-1), B=1<<(hb-lb-1), C=1<<lb;
-    #pragma omp for collapse(3)
-    for(int i=0; i<A; i++)
-    {
-        for(int j=0; j<B; j++)
-        {
-            for(int k=0; k<C; k++)
-            {
-                int now=(i<<(hb+1))|(j<<(lb+1))|k;
-                if(num[now]>num[now|C]) swap(num+now, num+(now|C));
-            }
-        }
-    }
-    return;
-}
-
-void bitonic_1(double *num, int bit, int hb, int lb)
-{
-    int A=1<<(bit-hb-1), B=1<<(hb-lb-1), C=1<<lb;
-    #pragma omp for collapse(3)
-    for(int i=0; i<A; i++)
-    {
-        for(int j=0; j<B; j++)
-        {
-            for(int k=0; k<C; k++)
-            {
-                int now=(i<<(hb+1))|(j<<(lb+1))|k|(1<<hb);
-                if(num[now]<num[now|C]) swap(num+now, num+(now|C));
-            }
-        }
-    }
-    return;
-}
-
-void sort(double *data, int N)
-{
-    int n=1, bit=0;
-    double inf=39, *num;
-    while(n<N) n<<=1, bit++;
-    num=malloc(sizeof(double)*n);
-    #pragma omp parallel for
-    for(int i=0; i<N; i++) num[i]=data[i];
-    #pragma omp parallel for
-    for(int i=N; i<n; i++) num[i]=inf;
-    #pragma omp parallel
-    {
-        for(int i=1; i<bit; i++)
-        {
-            for(int j=i-1; j>=0; j--)
-            {
-                bitonic_0(num, bit, i, j);
-                bitonic_1(num, bit, i, j);
-            }
-        }
-        for(int i=bit-1; i>=0; i--)
-        {
-            bitonic_0(num, bit+1, bit, i);
-        }
-    }
-    #pragma omp parallel for
-    for(int i=0; i<N; i++) data[i]=num[i];
-    free(num);
-    return;
+	if(begin<end) 
+	{
+		int mid=(begin+end)/2;
+		if(end-begin<10039)
+		{
+			sort(num, begin, mid);
+			sort(num, mid+1, end);
+			merge(num, begin, mid, end);
+			return;
+		}
+		#pragma omp task shared(num) firstprivate(begin, mid)
+		sort(num, begin, mid);
+		#pragma omp task shared(num) firstprivate(mid, end)
+		sort(num, mid+1, end);
+		#pragma omp taskwait
+		merge(num, begin, mid, end);
+	}
 }
 
 int check(double *data, int n)
@@ -142,7 +105,11 @@ int main(int argc, char *argv[])
         init(data, n);
         //print(data, n);
         gettimeofday(&st, NULL); /* get start time */
-        sort(data, n);
+    	#pragma omp parallel
+        {
+    		#pragma omp single
+            sort(data, 0, n-1);
+        }
         gettimeofday(&et, NULL); /* get start time */
         sec = time_diff_sec(st, et);
         average_time += sec;
