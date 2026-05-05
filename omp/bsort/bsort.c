@@ -119,6 +119,7 @@ int check(double *data, int n)
 
 int main(int argc, char *argv[])
 {
+    setvbuf(stdout, NULL, _IONBF, 0);
     int n = 1000039;
     double *data, average_time=0;
     int i;
@@ -128,7 +129,7 @@ int main(int argc, char *argv[])
     }
 
     int cpu_threads = omp_get_num_procs();
-    omp_set_num_threads(cpu_threads);
+    //omp_set_num_threads(cpu_threads);
     printf("%d\n",cpu_threads);
     int epochs = 39;
 
