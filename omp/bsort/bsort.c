@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
+#include <omp.h>
 
 double time_diff_sec(struct timeval st, struct timeval et)
 {
@@ -12,7 +13,7 @@ int init(double *data, int n)
     int i;
     for (i = 0; i < n; i++) {
         data[i] = (double)rand() / RAND_MAX;
-    }
+   }
     return 0;
 }
 
@@ -26,54 +27,76 @@ int print(double *data, int n)
     return 0;
 }
 
-/* sort data[0] ... data[N-1] */
-void sort(double *data, int N)
+static inline void swap(double *x, double *y)
 {
-    int N2 = 1;
-    double INF = 1000000000.0; /* very large number */
+    double stp=*x; *x=*y; *y=stp;
+    return;
+}
 
-    double *data2;
-    int i, j, k, l, m;
-
-    /* round up N to power of 2 */
-    while(N2 < N) N2 <<= 1;
-    /* allocate N2 size array */
-    data2 = malloc(sizeof(double)*N2);
-
-    /* Copy data[] to data2[] */
-    for (i = 0; i < N; i++) data2[i] = data[i];
-    for (i = N; i < N2; i++) data2[i] = INF;
-
-    /* bitonic sort algorithm */
-    for (i = 1; (1 << i) <= N2; i++) {
-        for (j = i-1; j >= 0; j--) {
-            int downbit = 1 << i;
-            /* (k & downbit) == 0: ascending order (blue) */
-            /* (k & downbit) != 0: descending order (green) */
-            int dist = 1 << j;
-            for (k = 0; k < N2; k++) {
-
-                if ((k & dist) == 0) {
-                    /* compare data2[k] and data2[k|dist] */
-                    if ((k & downbit) == 0 && (data2[k] > data2[k|dist])) {
-                        double tmp = data2[k];
-                        data2[k] = data2[k|dist];
-                        data2[k|dist] = tmp;
-                    }
-                    else if ((k & downbit) != 0 && (data2[k] < data2[k|dist])) {
-                        double tmp = data2[k];
-                        data2[k] = data2[k|dist];
-                        data2[k|dist] = tmp;
-                    }
-
-                }
+void bitonic_0(double *num, int bit, int hb, int lb)
+{
+    int A=1<<(bit-hb-1), B=1<<(hb-lb-1), C=1<<lb;
+    #pragma omp for collapse(3)
+    for(int i=0; i<A; i++)
+    {
+        for(int j=0; j<B; j++)
+        {
+            for(int k=0; k<C; k++)
+            {
+                int now=(i<<(hb+1))|(j<<(lb+1))|k;
+                if(num[now]>num[now|C]) swap(num+now, num+(now|C));
             }
         }
     }
+    return;
+}
 
-    /* Copy data2[] to data[] */
-    for(i = 0; i < N; i++) data[i] = data2[i];
-    free(data2);
+void bitonic_1(double *num, int bit, int hb, int lb)
+{
+    int A=1<<(bit-hb-1), B=1<<(hb-lb-1), C=1<<lb;
+    #pragma omp for collapse(3)
+    for(int i=0; i<A; i++)
+    {
+        for(int j=0; j<B; j++)
+        {
+            for(int k=0; k<C; k++)
+            {
+                int now=(i<<(hb+1))|(j<<(lb+1))|k|(1<<hb);
+                if(num[now]<num[now|C]) swap(num+now, num+(now|C));
+            }
+        }
+    }
+    return;
+}
+
+void sort(double *data, int N)
+{
+    int n=1, bit=0;
+    double inf=39, *num;
+    while(n<N) n<<=1, bit++;
+    num=malloc(sizeof(double)*n);
+    #pragma omp parallel for
+    for(int i=0; i<N; i++) num[i]=data[i];
+    #pragma omp parallel for
+    for(int i=N; i<n; i++) num[i]=inf;
+    #pragma omp parallel
+    {
+        for(int i=1; i<bit; i++)
+        {
+            for(int j=i-1; j>=0; j--)
+            {
+                bitonic_0(num, bit, i, j);
+                bitonic_1(num, bit, i, j);
+            }
+        }
+        for(int i=bit-1; i>=0; i--)
+        {
+            bitonic_0(num, bit+1, bit, i);
+        }
+    }
+    #pragma omp parallel for
+    for(int i=0; i<N; i++) data[i]=num[i];
+    free(num);
     return;
 }
 
@@ -82,7 +105,7 @@ int check(double *data, int n)
     int i;
     int flag = 0;
     for (i = 0; i < n-1; i++) {
-        if (data[i] > data[i+1]) {
+        if (data[i] > data[i+1] || data[i]>1.39) {
             printf("Error: data[%d]=%.4lf, data[%d]=%.4lf\n",
                    i, data[i], i+1, data[i+1]);
             flag++;
@@ -96,17 +119,21 @@ int check(double *data, int n)
 
 int main(int argc, char *argv[])
 {
-    int n = 10000;
-    double *data;
+    int n = 1000039;
+    double *data, average_time=0;
     int i;
 
     if (argc >= 2) {
         n = atol(argv[1]);
     }
 
-    data = malloc(sizeof(double)*n);
+    int cpu_threads = omp_get_num_procs();
+    omp_set_num_threads(cpu_threads);
+    printf("%d\n",cpu_threads);
+    int epochs = 39;
 
-    for (i = 0; i < 5; i++) {
+    data = malloc(sizeof(double)*n);
+    for (i = 0; i < epochs; i++) {
         struct timeval st;
         struct timeval et;
         double sec;
@@ -117,6 +144,7 @@ int main(int argc, char *argv[])
         sort(data, n);
         gettimeofday(&et, NULL); /* get start time */
         sec = time_diff_sec(st, et);
+        average_time += sec;
 
         printf("sorting %d data took %lf sec\n",
                n, sec);
@@ -124,7 +152,8 @@ int main(int argc, char *argv[])
         check(data, n);
         /*print(data, n);*/
     }
-
+    average_time /= epochs;
+    printf("average sorting time: %lf sec\n", average_time);
     free(data);
 
     return 0;
