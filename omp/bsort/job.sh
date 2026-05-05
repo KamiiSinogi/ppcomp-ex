@@ -3,4 +3,6 @@
 #$ -l cpu_4=1
 #$ -l h_rt=00:10:00
 
-./bsort 10000000
+export OMP_PROC_BIND=close
+export OMP_PLACES=cores
+./bsort 10000039
