@@ -69,16 +69,10 @@ void bitonic_1(double *num, int bit, int hb, int lb)
     return;
 }
 
-void sort(double *data, int N)
+void sort(double *num, int n, int N, int bit)
 {
-    int n=1, bit=0;
-    double inf=39, *num;
-    while(n<N) n<<=1, bit++;
-    num=malloc(sizeof(double)*n);
     #pragma omp parallel for
-    for(int i=0; i<N; i++) num[i]=data[i];
-    #pragma omp parallel for
-    for(int i=N; i<n; i++) num[i]=inf;
+    for(int i=n; i<N; i++) num[i]=39;
     #pragma omp parallel
     {
         for(int i=1; i<bit; i++)
@@ -94,9 +88,6 @@ void sort(double *data, int N)
             bitonic_0(num, bit+1, bit, i);
         }
     }
-    #pragma omp parallel for
-    for(int i=0; i<N; i++) data[i]=num[i];
-    free(num);
     return;
 }
 
@@ -121,19 +112,25 @@ int main(int argc, char *argv[])
 {
     setvbuf(stdout, NULL, _IONBF, 0);
 
-    int n = 1000039;
-    double *data, average_time=0;
-    int i;
+    int n=39, N=1, bit=0;
+    double *data;
+    int i, epochs=39;
 
     int cpu_threads = omp_get_num_procs();
     omp_set_num_threads(cpu_threads);
 
     if(argc>=2) n=atol(argv[1]);
     if(argc>=3) omp_set_num_threads(atol(argv[2]));
+    if(argc>=4) epochs=atol(argv[3]);
     printf("%d %d\n",cpu_threads,omp_get_max_threads());
 
-    int epochs = 10;
-    data = malloc(sizeof(double)*n);
+    while(N<n) N<<=1, bit++;
+    data=malloc(sizeof(double)*N);
+
+    #pragma omp parallel for 
+    for(int i=0; i<=N; i++) data[i]=39;
+
+    double *res=malloc(sizeof(double)*epochs);
     for (i = 0; i < epochs; i++) {
         struct timeval st;
         struct timeval et;
@@ -142,10 +139,10 @@ int main(int argc, char *argv[])
         init(data, n);
         //print(data, n);
         gettimeofday(&st, NULL); /* get start time */
-        sort(data, n);
+        sort(data, n, N, bit);
         gettimeofday(&et, NULL); /* get start time */
         sec = time_diff_sec(st, et);
-        average_time += sec;
+        res[i] = sec;
 
         printf("sorting %d data took %lf sec\n",
                n, sec);
@@ -153,8 +150,18 @@ int main(int argc, char *argv[])
         check(data, n);
         /*print(data, n);*/
     }
-    average_time /= epochs;
-    printf("average sorting time: %lf sec\n", average_time);
+    for(int i=0; i<epochs; i++)
+    {
+        for(int j=0; j<epochs-i-1;j++)
+        {
+            if(res[j]>res[j+1])
+            {
+                swap(res+j,res+j+1);
+            }
+        }
+    }
+    for(int i=0; i<epochs;i++) printf("%lf ",res[i]);printf("\n");
+    printf("madian sorting time: %lf sec\n", res[(epochs-1)>>1]);
     free(data);
 
     return 0;
