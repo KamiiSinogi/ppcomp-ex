@@ -116,9 +116,6 @@ int main(int argc, char *argv[])
     double *data;
     int i, epochs=39;
 
-    int cpu_threads = omp_get_num_procs();
-    omp_set_num_threads(cpu_threads);
-
     if(argc>=2) n=atol(argv[1]);
     if(argc>=3) epochs=atol(argv[2]);
 
