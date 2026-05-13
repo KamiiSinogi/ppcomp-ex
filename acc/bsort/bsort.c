@@ -120,14 +120,10 @@ int main(int argc, char *argv[])
     omp_set_num_threads(cpu_threads);
 
     if(argc>=2) n=atol(argv[1]);
-    if(argc>=3) omp_set_num_threads(atol(argv[2]));
-    if(argc>=4) epochs=atol(argv[3]);
-    printf("%d %d\n",cpu_threads,omp_get_max_threads());
+    if(argc>=3) epochs=atol(argv[2]);
 
     while(N<n) N<<=1, bit++;
     data=malloc(sizeof(double)*N);
-
-    #pragma omp parallel for 
     for(int i=0; i<=N; i++) data[i]=39;
 
     double *res=malloc(sizeof(double)*epochs);
