@@ -69,6 +69,26 @@ void bitonic_1(double *num, int bit, int hb, int lb, int N)
     return;
 }
 
+void bitonic(double *num, int bit, int hb, int lb, int N)
+{
+    int A=1<<(bit-hb-1), B=1<<(hb-lb-1), C=1<<lb;
+    #pragma acc parallel loop collapse(3) present(num[0:N])
+    for(int i=0; i<A; i++)
+    {
+        for(int j=0; j<B; j++)
+        {
+            for(int k=0; k<C; k++)
+            {
+                int now_0=(i<<(hb+1))|(j<<(lb+1))|k;
+                int now_1=(i<<(hb+1))|(j<<(lb+1))|k|(1<<hb);
+                if(num[now_0]>num[now_0|C]) swap(num+now_0, num+(now_0|C));
+                if(num[now_1]<num[now_1|C]) swap(num+now_1, num+(now_1|C));
+            }
+        }
+    }
+    return;
+}
+
 void sort(double *num, int n, int N, int bit)
 {
     #pragma acc data copy(num[0:N])
@@ -79,8 +99,9 @@ void sort(double *num, int n, int N, int bit)
         {
             for(int j=i-1; j>=0; j--)
             {
-                bitonic_0(num, bit, i, j, N);
-                bitonic_1(num, bit, i, j, N);
+                // bitonic_0(num, bit, i, j, N);
+                // bitonic_1(num, bit, i, j, N);
+                bitonic(num, bit, i, j, N);
             }
         }
         for(int i=bit-1; i>=0; i--)
