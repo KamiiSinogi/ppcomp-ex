@@ -36,7 +36,7 @@ static inline void swap(double *x, double *y)
 void bitonic_0(double *num, int bit, int hb, int lb, int N)
 {
     int A=1<<(bit-hb-1), B=1<<(hb-lb-1), C=1<<lb;
-    #pragma acc parallel loop collapse(3) present(num[0:N])
+    #pragma acc parallel loop collapse(3) vector_length(256) present(num[0:N])
     for(int i=0; i<A; i++)
     {
         for(int j=0; j<B; j++)
@@ -54,7 +54,7 @@ void bitonic_0(double *num, int bit, int hb, int lb, int N)
 void bitonic_1(double *num, int bit, int hb, int lb, int N)
 {
     int A=1<<(bit-hb-1), B=1<<(hb-lb-1), C=1<<lb;
-    #pragma acc parallel loop collapse(3) present(num[0:N])
+    #pragma acc parallel loop collapse(3) vector_length(256) present(num[0:N])
     for(int i=0; i<A; i++)
     {
         for(int j=0; j<B; j++)
@@ -72,7 +72,7 @@ void bitonic_1(double *num, int bit, int hb, int lb, int N)
 void bitonic(double *num, int bit, int hb, int lb, int N)
 {
     int A=1<<(bit-hb-1), B=1<<(hb-lb-1), C=1<<lb;
-    #pragma acc parallel loop collapse(3) present(num[0:N])
+    #pragma acc parallel loop collapse(3) vector_length(256) present(num[0:N])
     for(int i=0; i<A; i++)
     {
         for(int j=0; j<B; j++)
@@ -93,14 +93,14 @@ void sort(double *num, int n, int N, int bit)
 {
     #pragma acc data copy(num[0:N])
     {
-        #pragma acc parallel loop present(num[0:N])
+        #pragma acc parallel loop vector_length(256) present(num[0:N])
         for(int i=n; i<N; i++) num[i]=39;
         for(int i=1; i<bit; i++)
         {
             for(int j=i-1; j>=0; j--)
             {
-                // bitonic_0(num, bit, i, j, N);
-                // bitonic_1(num, bit, i, j, N);
+                //bitonic_0(num, bit, i, j, N);
+                //bitonic_1(num, bit, i, j, N);
                 bitonic(num, bit, i, j, N);
             }
         }
